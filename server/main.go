@@ -15,41 +15,40 @@ type Node struct {
 	Style    any     `json:"style,omitempty"`
 }
 
-func homeHandler(w http.ResponseWriter, r *http.Request) {
-	ui := &Node{
-		Type:  "Screen",
-		Title: "Welcome",
-		Children: []*Node{
-			{Type: "Text", Value: "Welcome to the Go-powered SDUI!"},
-			{Type: "Button", Label: "Continue", Action: "navigate:dashboard"},
-		},
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(ui)
+func Screen(title string, children ...*Node) *Node {
+	return &Node{Type: "Screen", Title: title, Children: children}
 }
 
-func dashboardHandler(w http.ResponseWriter, r *http.Request) {
-	ui := &Node{
-		Type:  "Screen",
-		Title: "Dashboard",
-		Children: []*Node{
-			{Type: "Text", Value: "Welcome, User!"},
-			{
-				Type:  "TextField",
-				Label: "Search",
-				Value: "",
-			},
-			{
-				Type:   "Button",
-				Label:  "Search",
-				Action: "search",
-			},
-		},
-	}
+func Text(value string) *Node {
+	return &Node{Type: "Text", Value: value}
+}
 
+func Button(label string, action string) *Node {
+	return &Node{Type: "Button", Label: label, Action: action}
+} 
+
+func TextField(label, value string) *Node {
+	return &Node{Type: "TextField", Label: label, Value: value}
+}
+
+func writeJSON(w http.ResponseWriter, data any) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(ui)
+	json.NewEncoder(w).Encode(data)
+}
+
+func homePage() *Node {
+	return Screen("Welcome",
+		Text("Welcome to the Go-powered SDUI!"),
+		Button("Continue", "navigate:dashboard"),
+	)
+}
+
+func dashboardPage() *Node {
+	return Screen("Dashboard",
+		Text("Welcome, User!"),
+		TextField("Search", ""),
+		Button("Search", "search"),
+	)
 }
 
 func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
@@ -58,7 +57,6 @@ func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE, PATCH")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
-		// Handle preflight request
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -68,9 +66,21 @@ func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+func uiHandler(page func() *Node) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, page())
+	}
+}
+
 func main() {
-	http.HandleFunc("/api/ui/home", corsMiddleware(homeHandler))
-	http.HandleFunc("/api/ui/dashboard", corsMiddleware(dashboardHandler))
+	routes := map[string]func() *Node {
+		"/api/ui/home": homePage,
+		"/api/ui/dashboard": dashboardPage,
+	}
+
+	for path, pageFunc := range routes {
+		http.HandleFunc(path, corsMiddleware(uiHandler(pageFunc)))
+	}
 
 	println("✅ api is running on http://localhost:8080")
 
