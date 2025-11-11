@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -35,8 +36,8 @@ func Button(label string, action string) *Node {
 	return &Node{Type: "Button", Label: label, Action: action}
 }
 
-func TextField(label, value string) *Node {
-	return &Node{Type: "TextField", Label: label, Value: value}
+func TextField(label, value, action string) *Node {
+	return &Node{Type: "TextField", Label: label, Value: value, Action: action}
 }
 
 func writeJSON(w http.ResponseWriter, data any) {
@@ -54,8 +55,8 @@ func homePage() *Node {
 func dashboardPage() *Node {
 	return Screen("Dashboard",
 		Text("Welcome, User!"),
-		TextField("Search", ""),
-		Button("Search", "api:GET:searchAlbum"),
+		TextField("Search", "", "change"),
+		Button("Search", "api:searchAlbum"),
 	)
 }
 
@@ -66,31 +67,36 @@ func getAlbums() http.HandlerFunc {
 		resp, err := http.Get(url)
 
 		if err != nil {
-			panic(err)
+			http.Error(w, "failed to fetch albums", http.StatusInternalServerError)
+			return
 		}
+
+		defer resp.Body.Close()
 
 		body, err := io.ReadAll(resp.Body)
 
 		if err != nil {
-			panic(err)
+			http.Error(w, "failed to read response", http.StatusInternalServerError)
+			return
 		}
 
 		var albums []Album
 		if err := json.Unmarshal(body, &albums); err != nil {
-			panic(err)
+			http.Error(w, "invalid JSON from API", http.StatusInternalServerError)
+			return
 		}
 
 		queryTitle := r.URL.Query().Get("title")
 
+		if queryTitle == "" {
+			writeJSON(w, albums)
+			return
+		}
+
 		var filtered []Album
 		for _, album := range albums {
-			match := true
 
-			if queryTitle != "" && !strings.Contains(strings.ToLower(album.Title), strings.ToLower(queryTitle)) {
-				match = false
-			}
-
-			if match {
+			if strings.Contains(strings.ToLower(album.Title), strings.ToLower(queryTitle)) {
 				filtered = append(filtered, album)
 			}
 		}
@@ -132,7 +138,7 @@ func main() {
 
 	http.HandleFunc("/api/albums", corsMiddleware(getAlbums()))
 
-	println("✅ api is running on http://localhost:8080")
+	fmt.Println("✅ api is running on http://localhost:8080")
 
 	http.ListenAndServe(":8080", nil)
 }
