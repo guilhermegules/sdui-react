@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
+	"strings"
 )
 
 type Node struct {
@@ -15,6 +17,12 @@ type Node struct {
 	Style    any     `json:"style,omitempty"`
 }
 
+type Album struct {
+	UserID int    `json:"userId"`
+	ID     int    `json:"id"`
+	Title  string `json:"title"`
+}
+
 func Screen(title string, children ...*Node) *Node {
 	return &Node{Type: "Screen", Title: title, Children: children}
 }
@@ -25,7 +33,7 @@ func Text(value string) *Node {
 
 func Button(label string, action string) *Node {
 	return &Node{Type: "Button", Label: label, Action: action}
-} 
+}
 
 func TextField(label, value string) *Node {
 	return &Node{Type: "TextField", Label: label, Value: value}
@@ -47,8 +55,48 @@ func dashboardPage() *Node {
 	return Screen("Dashboard",
 		Text("Welcome, User!"),
 		TextField("Search", ""),
-		Button("Search", "search"),
+		Button("Search", "api:GET:searchAlbum"),
 	)
+}
+
+func getAlbums() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		url := "https://jsonplaceholder.typicode.com/albums/"
+
+		resp, err := http.Get(url)
+
+		if err != nil {
+			panic(err)
+		}
+
+		body, err := io.ReadAll(resp.Body)
+
+		if err != nil {
+			panic(err)
+		}
+
+		var albums []Album
+		if err := json.Unmarshal(body, &albums); err != nil {
+			panic(err)
+		}
+
+		queryTitle := r.URL.Query().Get("title")
+
+		var filtered []Album
+		for _, album := range albums {
+			match := true
+
+			if queryTitle != "" && !strings.Contains(strings.ToLower(album.Title), strings.ToLower(queryTitle)) {
+				match = false
+			}
+
+			if match {
+				filtered = append(filtered, album)
+			}
+		}
+
+		writeJSON(w, filtered)
+	}
 }
 
 func corsMiddleware(next http.HandlerFunc) http.HandlerFunc {
@@ -73,14 +121,16 @@ func uiHandler(page func() *Node) http.HandlerFunc {
 }
 
 func main() {
-	routes := map[string]func() *Node {
-		"/api/ui/home": homePage,
+	routes := map[string]func() *Node{
+		"/api/ui/home":      homePage,
 		"/api/ui/dashboard": dashboardPage,
 	}
 
 	for path, pageFunc := range routes {
 		http.HandleFunc(path, corsMiddleware(uiHandler(pageFunc)))
 	}
+
+	http.HandleFunc("/api/albums", corsMiddleware(getAlbums()))
 
 	println("✅ api is running on http://localhost:8080")
 

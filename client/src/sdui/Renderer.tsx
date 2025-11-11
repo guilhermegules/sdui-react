@@ -3,8 +3,13 @@ import { componentRegistry } from "./core/componentRegistry";
 import type { Node } from "./core/schema";
 import { useAction } from "./core/useAction";
 
-export const Renderer = ({ json }: { json: Node }) => {
+type RendererProps = {
+  json: Node;
+};
+
+export const Renderer = ({ json }: RendererProps) => {
   const action = useAction();
+
   if (!json) return null;
 
   const Component = componentRegistry[json.type];
@@ -17,7 +22,9 @@ export const Renderer = ({ json }: { json: Node }) => {
 
   const props = { ...json };
   if (json.action) {
-    props.onClick = () => action(json.action);
+    props.onClick = () => {
+      action(json.action);
+    };
   }
 
   const children = json.children?.map((child, idx) => (
