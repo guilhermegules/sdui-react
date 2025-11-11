@@ -10,18 +10,25 @@ interface AlbumStore {
   albums: Album[];
   loading: boolean;
   error: string | null;
+  search: string;
   fetchAlbums: (options: { query: string }) => Promise<void>;
+  changeSearch: (search: string) => void;
 }
 
 export const useAlbumStore = create<AlbumStore>((set) => ({
   albums: [],
   loading: false,
   error: null,
+  search: "",
   fetchAlbums: async ({ query }) => {
     set({ loading: true, error: null });
     try {
       const response = await fetch(
-        `https://jsonplaceholder.typicode.com/albums?${query}`
+        `https://jsonplaceholder.typicode.com/albums?${query}`,
+        {
+          cache: "no-cache",
+          method: "GET",
+        }
       );
       if (!response.ok) throw new Error("Failed to fetch albums");
 
@@ -32,4 +39,5 @@ export const useAlbumStore = create<AlbumStore>((set) => ({
       set({ error: err?.message ?? "", loading: false });
     }
   },
+  changeSearch: (search) => set({ search }),
 }));

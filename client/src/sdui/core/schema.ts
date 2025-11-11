@@ -9,6 +9,7 @@ export const nodeSchema = z.lazy(() =>
     action: z.string().optional(),
     style: z.record(z.string(), z.string()).optional(),
     onClick: z.function().optional(),
+    onChange: z.function().optional(),
     children: z
       .array(
         z.object({

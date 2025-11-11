@@ -1,28 +1,38 @@
 import { useNavigate } from "react-router";
-import { useAlbumStore } from "../../stores/albumStore";
+import { useCallback } from "react";
 
 export type Action = (action: string | undefined) => void;
+
+export type ActionHandler<T = any> = (params?: T) => Promise<void> | void;
+
+interface UseActionProps {
+  handlers?: Record<string, ActionHandler>;
+}
 
 /**
  * @returns Returns an action that can interpret backend-driven actions
  */
-export const useAction = (): Action => {
+export const useAction = ({ handlers }: UseActionProps): Action => {
   const navigate = useNavigate();
-  const { fetchAlbums } = useAlbumStore();
 
-  return async (action: string | undefined) => {
-    if (!action) return;
+  return useCallback(
+    async (action: string | undefined) => {
+      if (!action) return;
 
-    if (action.startsWith("navigate:")) {
-      const path = action.replace("navigate:", "");
-      navigate(path);
-      return;
-    }
+      if (action.startsWith("navigate:")) {
+        const path = action.replace("navigate:", "");
+        navigate(path);
+        return;
+      }
 
-    if (action.startsWith("api:")) {
-      const [, method, apiAction] = action.split(":");
-      await fetchAlbums({ query: "title=quidem molestiae enim" });
-      return;
-    }
-  };
+      const [type, value] = action.split(":");
+      const handler = handlers?.[type];
+      console.log(type, value);
+      if (typeof handler === "function") {
+        await handler({ value });
+        return;
+      }
+    },
+    [handlers, navigate]
+  );
 };

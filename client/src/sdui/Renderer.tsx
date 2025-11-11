@@ -1,14 +1,15 @@
 import { Suspense } from "react";
 import { componentRegistry } from "./core/componentRegistry";
 import type { Node } from "./core/schema";
-import { useAction } from "./core/useAction";
+import { useAction, type ActionHandler } from "./core/useAction";
 
 type RendererProps = {
   json: Node;
+  handlers?: Record<string, ActionHandler>;
 };
 
-export const Renderer = ({ json }: RendererProps) => {
-  const action = useAction();
+export const Renderer = ({ json, handlers }: RendererProps) => {
+  const action = useAction({ handlers });
 
   if (!json) return null;
 
@@ -21,14 +22,20 @@ export const Renderer = ({ json }: RendererProps) => {
   }
 
   const props = { ...json };
-  if (json.action) {
+  console.log(json.action);
+  if (json.action === "change") {
+    props.onChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+      const { value } = event.target;
+      action(`change:${value}`);
+    };
+  } else {
     props.onClick = () => {
       action(json.action);
     };
   }
 
   const children = json.children?.map((child, idx) => (
-    <Renderer key={idx} json={child} />
+    <Renderer key={idx} json={child} handlers={handlers} />
   ));
 
   return (
